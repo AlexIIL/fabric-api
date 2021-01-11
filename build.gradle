@@ -85,6 +85,75 @@ def moduleDependencies(project, List<String> depNames) {
 	}
 }
 
+class ModuleDeps {
+    static def moduleDeps = new HashMap<String, List<String>>();
+    static def moduleTestDeps = new HashMap<String, List<String>>();
+}
+
+def defineModule(String moduleName, String version, List<String> deps, List<String> testDeps) {
+    ModuleDeps.moduleDeps.put(moduleName, deps);
+    ModuleDeps.moduleTestDeps.put(moduleName, testDeps);
+    sourceSets {
+        "$moduleName" {
+            java {
+                srcDir moduleName + "/src/main/java"
+            }
+            resources {
+                srcDir moduleName + "/src/main/resources"
+            }
+            afterEvaluate {
+                compileClasspath += sourceSets.main.compileClasspath;
+
+                def visited = new HashSet<String>();
+                def toVisit = new HashSet<String>();
+                toVisit.addAll(deps);
+
+                while (!toVisit.isEmpty()) {
+                    String dep = toVisit.iterator().next();
+                    toVisit.remove(dep);
+                    if (!visited.add(dep)) {
+                        continue;
+                    }
+                    compileClasspath += sourceSets[dep].output
+                    toVisit.addAll(ModuleDeps.moduleDeps.get(dep));
+                }
+            }
+        }
+        "${moduleName}Test" {
+            java {
+                srcDir moduleName + "/src/testmod/java"
+            }
+            resources {
+                srcDir moduleName + "/src/testmod/resources"
+            }
+            afterEvaluate {
+                compileClasspath += sourceSets[moduleName].compileClasspath
+                compileClasspath += sourceSets[moduleName].output
+
+                def visited = new HashSet<String>();
+                def toVisit = new HashSet<String>();
+                toVisit.addAll(deps);
+                toVisit.addAll(testDeps);
+
+                while (!toVisit.isEmpty()) {
+                    String dep = toVisit.iterator().next();
+                    toVisit.remove(dep);
+                    if (!visited.add(dep)) {
+                        continue;
+                    }
+                    compileClasspath += sourceSets[dep].output
+                    toVisit.addAll(ModuleDeps.moduleDeps.get(dep));
+                    toVisit.addAll(ModuleDeps.moduleTestDeps.get(dep));
+                }
+            }
+        }
+    }
+    configurations {
+         "${moduleName}AnnotationProcessor" {}
+         "${moduleName}TestAnnotationProcessor" {}
+    }
+}
+
 allprojects {
 	apply plugin: "checkstyle"
 	apply plugin: "maven-publish"
@@ -136,9 +205,69 @@ allprojects {
 		mavenLocal()
 	}
 
+    publishing {
+        repositories {
+            maven {
+                url System.getenv("MAVEN_DIR") ?: "${rootProject.projectDir}/build/maven"
+            }
+        }
+    }
+
 	jar {
 		classifier = "dev"
 	}
+
+    if ("true".equals(single_project)) {
+        // Module Deps
+        // To configure a module, change something here
+
+        defineModule("fabric-api-base", "0.2.0", [], ["fabric-command-api-v1", "fabric-lifecycle-events-v1"]);
+        defineModule("fabric-biome-api-v1", "3.1.0", [], []);
+        defineModule("fabric-blockrenderlayer-v1", "1.1.4", ["fabric-api-base"], []);
+        defineModule("fabric-command-api-v1", "1.0.9", ["fabric-api-base"], []);
+        defineModule("fabric-commands-v0", "0.2.1", ["fabric-api-base", "fabric-command-api-v1"], []);
+        defineModule("fabric-containers-v0", "0.2.1", ["fabric-api-base", "fabric-networking-v0"], []);
+        defineModule("fabric-content-registries-v0", "0.0.0", ["fabric-api-base", "fabric-lifecycle-events-v1", "fabric-resource-loader-v0"], []);
+        defineModule("fabric-crash-report-info-v1", "0.0.0", [], []);
+        defineModule("fabric-dimensions-v1", "0.0.0", ["fabric-api-base"], []);
+        defineModule("fabric-entity-events-v1", "0.0.0", ["fabric-api-base"], []);
+        defineModule("fabric-events-interaction-v0", "0.0.0", ["fabric-api-base"], []);
+        defineModule("fabric-events-lifecycle-v0", "0.2.0", ["fabric-api-base", "fabric-item-api-v1", "fabric-lifecycle-events-v1"], []);
+        defineModule("fabric-game-rule-api-v1", "0.0.0", [], ["fabric-api-base", "fabric-resource-loader-v0"]);
+        defineModule("fabric-item-api-v1", "1.2.0", ["fabric-api-base"], []);
+        defineModule("fabric-item-groups-v0", "0.0.0", [], []);
+        defineModule("fabric-key-binding-api-v1", "1.0.1", [], ["fabric-api-base", "fabric-events-lifecycle-v0", "fabric-resource-loader-v0"]);
+        defineModule("fabric-keybindings-v0", "0.2.0", ["fabric-key-binding-api-v1"], []);
+        defineModule("fabric-lifecycle-events-v1", "0.0.0", ["fabric-api-base"], []);
+        defineModule("fabric-loot-events-v1", "0.0.0", [], []);
+        defineModule("fabric-mining-levels-v0", "0.1.2", ["fabric-api-base", "fabric-tag-extensions-v0", "fabric-tool-attribute-api-v1"], []);
+        defineModule("fabric-models-v0", "0.0.0", [], []);
+        defineModule("fabric-networking-api-v1", "1.0.0", ["fabric-api-base"], ["fabric-command-api-v1", "fabric-lifecycle-events-v1", "fabric-key-binding-api-v1"]);
+        defineModule("fabric-networking-blockentity-v0", "0.0.0", [], []);
+        defineModule("fabric-networking-v0", "0.0.0", ["fabric-api-base", "fabric-networking-api-v1"], []);
+        defineModule("fabric-object-builder-api-v1", "1.9.2", ["fabric-api-base", "fabric-tool-attribute-api-v1"], ["fabric-command-api-v1"]);
+        defineModule("fabric-particles-v1", "0.0.0", [], []);
+        defineModule("fabric-registry-sync-v1", "0.0.0", [], []);
+        defineModule("fabric-renderer-api-v1", "0.0.0", [], []);
+        defineModule("fabric-renderer-indigo", "0.4.3", ["fabric-api-base", "fabric-renderer-api-v1"], []);
+        defineModule("fabric-renderer-registries-v1", "2.2.0", ["fabric-api-base"], ["fabric-lifecycle-events-v1"]);
+        defineModule("fabric-rendering-data-attachment-v1", "0.0.0", [], []);
+        defineModule("fabric-rendering-fluids-v1", "0.0.0", [], []);
+        defineModule("fabric-rendering-v0", "0.0.0", [], []);
+        defineModule("fabric-rendering-v1", "0.0.0", [], []);
+        defineModule("fabric-resource-loader-v0", "0.0.0", [], []);
+        defineModule("fabric-screen-handler-api-v1", "0.0.0", [], []);
+        defineModule("fabric-structure-api-v1", "0.0.0", [], []);
+        defineModule("fabric-tag-extensions-v0", "0.0.0", [], []);
+        defineModule("fabric-textures-v0", "0.0.0", [], []);
+        defineModule("fabric-tool-attribute-api-v1", "1.2.5", ["fabric-api-base", "fabric-tag-extensions-v0"], ["fabric-object-builder-api-v1", "fabric-lifecycle-events-v1"]);
+
+        // End of module configuration
+
+        minecraft {
+            accessWidener = file('joined.accesswidener')
+        }
+    }
 
 	afterEvaluate {
 		remapJar {

@@ -159,6 +159,7 @@ public class FabricBlockSettings extends AbstractBlock.Settings {
 		return this;
 	}
 
+	@Override
 	public FabricBlockSettings strength(float strength) {
 		super.strength(strength);
 		return this;

@@ -10,6 +10,11 @@ pluginManagement {
 	}
 }
 
+
+if ("true".equals(single_project)) {
+
+} else {
+
 rootProject.name = "fabric-api"
 
 include 'fabric-api-base'
@@ -54,3 +59,5 @@ include 'fabric-structure-api-v1'
 include 'fabric-tag-extensions-v0'
 include 'fabric-textures-v0'
 include 'fabric-tool-attribute-api-v1'
+
+}

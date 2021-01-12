@@ -60,6 +60,7 @@ public final class EnumRuleWidget<E extends Enum<E>> extends EditGameRulesScreen
 		return new LiteralText(value.toString());
 	}
 
+	@Override
 	public void render(MatrixStack matrices, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float tickDelta) {
 		// FIXME: Param names nightmare
 		this.drawName(matrices, y, x);

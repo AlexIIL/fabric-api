@@ -162,6 +162,32 @@ def defineModule(String moduleName, String version, List<String> deps, List<Stri
          "${moduleName}AnnotationProcessor" {}
          "${moduleName}TestAnnotationProcessor" {}
     }
+
+	task "remapMavenJar$moduleName"(type: Copy, dependsOn: "remapJar$moduleName") {
+		afterEvaluate {
+			from("${project.buildDir}/libs/$moduleName-${version}.jar")
+			into("${project.buildDir}/libs/")
+			rename { String fn -> "$moduleName-${version}-maven.jar" }
+		}
+	}
+
+	publishing {
+		publications {
+			mavenJava(MavenPublication) {
+				afterEvaluate {
+					artifact(file("${project.buildDir}/libs/$moduleName-${version}-maven.jar")) {
+						builtBy "remapMavenJar$moduleName"
+					}
+
+					//artifact(sourcesJar) {
+					//	builtBy remapSourcesJar
+					//}
+				}
+			}
+		}
+
+		setupRepositories(repositories)
+	}
 }
 
 allprojects {
@@ -214,14 +240,6 @@ allprojects {
 	repositories {
 		mavenLocal()
 	}
-
-    publishing {
-        repositories {
-            maven {
-                url System.getenv("MAVEN_DIR") ?: "${rootProject.projectDir}/build/maven"
-            }
-        }
-    }
 
 	jar {
 		classifier = "dev"
@@ -453,6 +471,10 @@ void setupRepositories(RepositoryHandler repositories) {
 				username ENV.MAVEN_USERNAME
 				password ENV.MAVEN_PASSWORD
 			}
+		}
+	} else {
+		repositories.maven {
+			url "${rootProject.projectDir}/build/maven"
 		}
 	}
 }

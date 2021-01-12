@@ -94,6 +94,9 @@ def defineModule(String moduleName, String version, List<String> deps, List<Stri
 	if ("0.0.0".equals(version) || version == null || version.isEmpty()) {
 		throw new Error("Missing version for module " + moduleName);
 	}
+	if (!new File(moduleName).isDirectory()) {
+		throw new Error("Missing folder for module " + moduleName);
+	}
     ModuleDeps.moduleDeps.put(moduleName, deps);
     ModuleDeps.moduleTestDeps.put(moduleName, testDeps);
     sourceSets {
@@ -150,6 +153,10 @@ def defineModule(String moduleName, String version, List<String> deps, List<Stri
                 }
             }
         }
+		testmod {
+			runtimeClasspath += sourceSets[moduleName].output
+			runtimeClasspath += sourceSets[moduleName + "Test"].output
+		}
     }
     configurations {
          "${moduleName}AnnotationProcessor" {}
@@ -233,29 +240,29 @@ allprojects {
         defineModule("fabric-content-registries-v0", "0.2.0", ["fabric-api-base", "fabric-lifecycle-events-v1", "fabric-resource-loader-v0"], []);
         defineModule("fabric-crash-report-info-v1", "0.1.2", [], []);
         defineModule("fabric-dimensions-v1", "2.0.1", ["fabric-api-base"], ["fabric-command-api-v1", "fabric-resource-loader-v0", "fabric-lifecycle-events-v1"]);
-        defineModule("fabric-entity-events-v1", "0.0.0", ["fabric-api-base"], []);
-        defineModule("fabric-events-interaction-v0", "0.0.0", ["fabric-api-base"], []);
+        defineModule("fabric-entity-events-v1", "1.0.2", ["fabric-api-base"], ["fabric-command-api-v1"]);
+        defineModule("fabric-events-interaction-v0", "0.4.1", ["fabric-api-base"], []);
         defineModule("fabric-events-lifecycle-v0", "0.2.0", ["fabric-api-base", "fabric-item-api-v1", "fabric-lifecycle-events-v1"], []);
-        defineModule("fabric-game-rule-api-v1", "0.0.0", [], ["fabric-api-base", "fabric-resource-loader-v0"]);
+        defineModule("fabric-game-rule-api-v1", "1.0.5", [], ["fabric-api-base", "fabric-resource-loader-v0"]);
         defineModule("fabric-item-api-v1", "1.2.0", ["fabric-api-base"], []);
-        defineModule("fabric-item-groups-v0", "0.0.0", [], []);
+        defineModule("fabric-item-groups-v0", "0.2.2", ["fabric-api-base", "fabric-resource-loader-v0"], []);
         defineModule("fabric-key-binding-api-v1", "1.0.1", [], ["fabric-api-base", "fabric-events-lifecycle-v0", "fabric-resource-loader-v0"]);
         defineModule("fabric-keybindings-v0", "0.2.0", ["fabric-key-binding-api-v1"], []);
-        defineModule("fabric-lifecycle-events-v1", "0.0.0", ["fabric-api-base"], []);
-        defineModule("fabric-loot-events-v1", "0.0.0", [], []);
+        defineModule("fabric-lifecycle-events-v1", "1.2.0", ["fabric-api-base"], []);
+        defineModule("fabric-loot-tables-v1", "1.0.1", ["fabric-api-base"], []);
         defineModule("fabric-mining-levels-v0", "0.1.2", ["fabric-api-base", "fabric-tag-extensions-v0", "fabric-tool-attribute-api-v1"], []);
-        defineModule("fabric-models-v0", "0.0.0", [], []);
+        defineModule("fabric-models-v0", "0.2.0", ["fabric-api-base"], []);
         defineModule("fabric-networking-api-v1", "1.0.0", ["fabric-api-base"], ["fabric-command-api-v1", "fabric-lifecycle-events-v1", "fabric-key-binding-api-v1"]);
-        defineModule("fabric-networking-blockentity-v0", "0.0.0", [], []);
-        defineModule("fabric-networking-v0", "0.0.0", ["fabric-api-base", "fabric-networking-api-v1"], []);
+        defineModule("fabric-networking-blockentity-v0", "0.2.7", ["fabric-api-base"], []);
+        defineModule("fabric-networking-v0", "0.3.1", ["fabric-api-base", "fabric-networking-api-v1"], []);
         defineModule("fabric-object-builder-api-v1", "1.9.2", ["fabric-api-base", "fabric-tool-attribute-api-v1"], ["fabric-command-api-v1"]);
-        defineModule("fabric-particles-v1", "0.0.0", [], []);
-        defineModule("fabric-registry-sync-v1", "0.0.0", [], []);
-        defineModule("fabric-renderer-api-v1", "0.0.0", [], []);
+        defineModule("fabric-particles-v1", "0.2.3", ["fabric-api-base", "fabric-textures-v0"], []);
+        defineModule("fabric-registry-sync-v0", "0.7.3", ["fabric-api-base", "fabric-networking-api-v1"], []);
+        defineModule("fabric-renderer-api-v1", "0.4.0", ["fabric-api-base"], []);
         defineModule("fabric-renderer-indigo", "0.4.3", ["fabric-api-base", "fabric-renderer-api-v1"], []);
         defineModule("fabric-renderer-registries-v1", "2.2.0", ["fabric-api-base"], ["fabric-lifecycle-events-v1"]);
-        defineModule("fabric-rendering-data-attachment-v1", "0.0.0", [], []);
-        defineModule("fabric-rendering-fluids-v1", "0.0.0", [], []);
+        defineModule("fabric-rendering-data-attachment-v1", "0.1.4", ["fabric-api-base"], []);
+        defineModule("fabric-rendering-fluids-v1", "0.1.12", ["fabric-api-base"], []);
         defineModule("fabric-rendering-v0", "1.1.1", ["fabric-api-base", "fabric-rendering-v1"], []);
         defineModule("fabric-rendering-v1", "1.5.0", ["fabric-api-base"], []);
         defineModule("fabric-resource-loader-v0", "0.4.1", [], ["fabric-api-base", "fabric-lifecycle-events-v1"]);
@@ -268,6 +275,10 @@ allprojects {
         // End of module configuration
 
         minecraft {
+			// TODO: Either (1) join the access widener files before setting this
+			// or (2) change loom to make it accept multiple access widener files
+
+			// (1) is probably much easier to implement. 
             accessWidener = file('joined.accesswidener')
         }
     }
@@ -350,8 +361,12 @@ build.dependsOn javadocJar
 
 // Runs a dedicated headless server with all test mods that closes once complete.
 task runAutoTestServer(type: RunServerTask) {
-	project.subprojects {
-		classpath it.sourceSets.testmod.runtimeClasspath
+	if ("true".equals(single_project)) {
+		classpath sourceSets.testmod.runtimeClasspath
+	} else {
+		project.subprojects {
+			classpath it.sourceSets.testmod.runtimeClasspath
+		}
 	}
 	jvmArgs "-Dfabric.autoTest"
 	args "--nogui"

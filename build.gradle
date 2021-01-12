@@ -90,8 +90,8 @@ class ModuleDeps {
     static def moduleTestDeps = new HashMap<String, List<String>>();
 }
 
-def defineModule(String moduleName, String version, List<String> deps, List<String> testDeps) {
-	if ("0.0.0".equals(version) || version == null || version.isEmpty()) {
+def defineModule(String moduleName, String moduleVersion, List<String> deps, List<String> testDeps) {
+	if ("0.0.0".equals(moduleVersion) || moduleVersion == null || moduleVersion.isEmpty()) {
 		throw new Error("Missing version for module " + moduleName);
 	}
 	if (!new File(moduleName).isDirectory()) {
@@ -163,30 +163,52 @@ def defineModule(String moduleName, String version, List<String> deps, List<Stri
          "${moduleName}TestAnnotationProcessor" {}
     }
 
-	task "remapMavenJar$moduleName"(type: Copy, dependsOn: "remapJar$moduleName") {
-		afterEvaluate {
-			from("${project.buildDir}/libs/$moduleName-${version}.jar")
-			into("${project.buildDir}/libs/")
-			rename { String fn -> "$moduleName-${version}-maven.jar" }
-		}
+	task "jar-$moduleName"(type: Jar) {
+		from sourceSets["$moduleName"].output
+		destinationDir = file("${rootProject.buildDir}/dev-libs/")
+		archiveFileName = "$moduleName-$moduleVersion-dev.jar"
 	}
+
+	task "sourcesJar-$moduleName"(type: Jar) {
+		from sourceSets["$moduleName"].allSource
+		destinationDir = file("${rootProject.buildDir}/dev-libs/")
+		archiveFileName = "$moduleName-$moduleVersion-dev-sources.jar"
+	}
+
+	task "remapJar-$moduleName"(type: net.fabricmc.loom.task.RemapJarTask) {
+		input = file("${rootProject.buildDir}/dev-libs/$moduleName-$moduleVersion-dev.jar")
+		destinationDir = file("${rootProject.buildDir}/libs/")
+		archiveFileName = "$moduleName-${moduleVersion}.jar"
+		addNestedDependencies = false
+		dependsOn tasks["jar-$moduleName"]
+	}
+
+	task "remapSourcesJar-$moduleName"(type: net.fabricmc.loom.task.RemapSourcesJarTask) {
+		input = file("${rootProject.buildDir}/dev-libs/$moduleName-$moduleVersion-dev-sources.jar")
+		output = file("${rootProject.buildDir}/libs/$moduleName-$moduleVersion-sources.jar")
+		dependsOn tasks["sourcesJar-$moduleName"]
+	}
+	
+	build.dependsOn tasks["remapJar-$moduleName"]
+	build.dependsOn tasks["remapSourcesJar-$moduleName"]
 
 	publishing {
 		publications {
-			mavenJava(MavenPublication) {
+			"maven$moduleName"(MavenPublication) {
+				artifactId moduleName
+				version moduleVersion
 				afterEvaluate {
-					artifact(file("${project.buildDir}/libs/$moduleName-${version}-maven.jar")) {
-						builtBy "remapMavenJar$moduleName"
+					artifact(file("${project.buildDir}/libs/$moduleName-${moduleVersion}.jar")) {
+						builtBy tasks["remapJar-$moduleName"]
 					}
 
-					//artifact(sourcesJar) {
-					//	builtBy remapSourcesJar
-					//}
+					artifact("${project.buildDir}/libs/$moduleName-$moduleVersion-sources.jar") {
+						builtBy tasks["remapSourcesJar-$moduleName"]
+						classifier "sources"
+					}
 				}
 			}
 		}
-
-		setupRepositories(repositories)
 	}
 }
 
